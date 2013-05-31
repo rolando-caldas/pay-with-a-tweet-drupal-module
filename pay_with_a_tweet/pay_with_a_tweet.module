@@ -1,0 +1,340 @@
+<?php
+
+/**
+ * @defgroup pay_with_a_tweet Pay with a Tweet
+ *
+ * The Pay with a Tweet module allows visitors to download files after allowing
+ * website posts a tweet on his Twitter account.
+ */
+
+/**
+ * @file
+ * Main file for the Pay with a Tweet module.
+ *
+ * @ingroup pay_with_a_tweet
+ */
+
+define('PAY_WITH_A_TWEET', 'pay-with-a-tweet');
+define('PAY_WITH_A_TWEET_BLOCK_SHORTCUTS', 'pay-with-a-tweet-');
+
+/**
+ * Implements hook_permission().
+ * 
+ */
+function pay_with_a_tweet_permission() {
+  return array(
+    'administer pay_with_a_tweet' => array(
+      'title' => t('Administer Pay With a Tweet'),
+      'restrict access' => TRUE,
+    ),
+    'view pay_with_a_tweet' => array(
+      'title' => t('View Pay With a Tweet'),
+    )
+  );
+}
+
+/**
+ * Implements hook_menu().
+ * 
+ */
+function pay_with_a_tweet_menu() {
+
+  $items['admin/pay_with_a_tweet'] = array(
+    'title' => 'Pay With a Tweet',
+    'description' => 'Manage Pay With a Tweet structure',
+    'page callback' => 'pay_with_a_tweet_info',
+    'access arguments' => array('administer pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.admin.inc',
+  );
+
+  $items['admin/pay_with_a_tweet/manage'] = array(
+    'title' => 'Manage',
+    'description' => 'Manage pay with a tweet.',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  $items['admin/pay_with_a_tweet/config'] = array(
+    'title' => 'Config',
+    'description' => 'Manage pay with a tweet.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('pay_with_a_tweet_config_form'),
+    'access arguments' => array('administer pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  $items['admin/pay_with_a_tweet/add'] = array(
+    'title' => 'new button',
+    'page callback' => 'pay_with_a_tweet_add',
+    'access arguments' => array('create pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.admin.inc',
+    'type' => MENU_LOCAL_TASK
+  );
+
+  $items['admin/pay_with_a_tweet/%pay_with_a_tweet/edit'] = array(
+    'title' => 'edit button',
+    'page callback' => 'pay_with_a_tweet_edit',
+    'page arguments' => array(2),
+    'access arguments' => array('create pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.admin.inc',
+    'type' => MENU_LOCAL_TASK
+  );
+
+  $items['admin/pay_with_a_tweet/%pay_with_a_tweet/delete'] = array(
+    'title' => 'delete button',
+    'page callback' => 'pay_with_a_tweet_delete',
+    'page arguments' => array(2),
+    'access arguments' => array('create pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.admin.inc',
+    'type' => MENU_LOCAL_TASK
+  );
+
+
+  $items['pay_with_a_tweet/%pay_with_a_tweet'] = array(
+    'title' => 'Pay with a tweet to download',
+    'page callback' => 'pay_with_a_tweet_twitter_connect',
+    'page arguments' => array(1),
+    'access arguments' => array('view pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.page.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['pay_with_a_tweet/%pay_with_a_tweet/callback'] = array(
+    'title' => 'Twitter callback',
+    'type' => MENU_CALLBACK,
+    'page callback' => 'pay_with_a_tweet_twitter_callback',
+    'page arguments' => array(1),
+    'access arguments' => array('view pay_with_a_tweet'),
+    'file' => 'pay_with_a_tweet.page.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ * 
+ */
+function pay_with_a_tweet_theme() {
+  return array(
+    'pay_with_a_tweet_button' => array(
+      'path' => drupal_get_path('module', 'pay_with_a_tweet') . '/theme',
+      'template' => 'pay-with-a-tweet-button',
+      'variables' => array('pay_with_a_tweet' => NULL, 'configuration' => NULL)
+    ),
+    'pay_with_a_tweet_token' => array(
+      'path' => drupal_get_path('module', 'pay_with_a_tweet') . '/theme',
+      'template' => 'pay-with-a-tweet-token',
+      'variables' => array('pay_with_a_tweet' => NULL)
+    ),
+  );
+}
+
+/**
+ * Implements hook_entity_info().
+ * 
+ */
+function pay_with_a_tweet_entity_info() {
+  $pay_with_a_tweet_info['pay_with_a_tweet'] = array(
+    'label' => t('Pay with a Tweet Download'),
+    'controller class' => 'PayWithATweetController',
+    'base table' => 'pay_with_a_tweet',
+    'uri callback' => 'pay_with_a_tweet_uri',
+    'fieldable' => FALSE, //@TODO Change to TRUE to enable extra field support
+    'entity keys' => array(
+      'id' => 'pid',
+    ),
+    'static cache' => TRUE,
+    'bundles' => array(
+      'pay_with_a_tweet' => array(
+        'label' => 'PayWithATweet',
+        'admin' => array(
+          'path' => 'admin/pay_with_a_tweet/manage',
+          'access arguments' => array('administer pay with a tweet buttons'),
+        ),
+      ),
+    ),
+    'view modes' => array(
+      'full' => array(
+        'label' => t('Full PayWithATweet'),
+        'custom settings' => FALSE,
+      ),
+    )
+  );
+
+  return $pay_with_a_tweet_info;
+}
+
+/**
+ * Implements hook_entity_entity_delete().
+ *
+ */
+function pay_with_a_tweet_entity_delete($pay_with_a_tweet) {
+  if (!empty($pay_with_a_tweet) && is_object($pay_with_a_tweet) && isset($pay_with_a_tweet->pid) && !empty($pay_with_a_tweet->pid)) {
+    $return = entity_get_controller('pay_with_a_tweet')->delete(array($pay_with_a_tweet->pid));
+  }
+  else {
+    $return = FALSE;
+  }
+  return $return;
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ * 
+ * @TODO support to extra fields
+ */
+function pay_with_a_tweet_field_extra_fields() {
+  $return = array();
+  $return['pay_with_a_tweet']['pay_with_a_tweet'] = array(
+    'form' => array(
+      'note' => array(
+        'label' => t('Note'),
+        'description' => t('PostIt Note'),
+      ),
+    ),
+  );
+
+  return $return;
+}
+
+/**
+ * Load a pay_with_a_tweet entity from the database.
+ *
+ * @param $pid
+ *   The pay_with_a_tweet ID.
+ * @param $reset
+ *   Whether to reset the pay_with_a_tweet_load_multiple cache.
+ *
+ * @return
+ *   A fully-populated pay_with_a_tweet object, or FALSE if the node is not
+ *   found.
+ */
+function pay_with_a_tweet_load($pid = NULL, $reset = FALSE) {
+  $pids = (isset($pid) ? array($pid) : array());
+  $pay_with_a_tweet = pay_with_a_tweet_load_multiple($pids, $reset);
+  return $pay_with_a_tweet ? reset($pay_with_a_tweet) : FALSE;
+}
+
+/**
+ * Load pay_with_a_tweet entities from the database.
+ *
+ * This function should be used whenever you need to load more than one
+ * pay_with_a_tweet from the database. pay_with_a_tweet are loaded into memory
+ * and will not require database access if loaded again during the same page
+ * request.
+ *
+ * @see entity_load()
+ * 
+ * @param $pids
+ *   An array of pay_with_a_tweet IDs
+ * @param $conditions
+ *   (deprecated) An associative array of conditions on the {node}
+ *   table, where the keys are the database fields and the values are the
+ *   values those fields must have. Instead, it is preferable to use
+ *   EntityFieldQuery to retrieve a list of entity IDs loadable by
+ *   this function.
+ * @param $reset
+ *   Whether to reset the internal pay_with_a_tweet_load cache.
+ *
+ * @return
+ *   An array of pay_with_a_tweet objects indexed by pid.
+ *
+ * @todo Remove $conditions in Drupal 8.
+ */
+function pay_with_a_tweet_load_multiple($pids = array(), $conditions = array(), $reset = FALSE) {
+  return entity_load('pay_with_a_tweet', $pids, $conditions, $reset);
+}
+
+/**
+ * Prepare pay_with_a_tweet entity to print content
+ * 
+ * @global string $base_url
+ * @param $pay_with_a_tweet
+ *   A pay_with_a_tweet entity
+ */
+function pay_with_a_tweet_render(&$pay_with_a_tweet) {
+  global $base_url;
+  if (!empty($pay_with_a_tweet->image)) {
+    $pay_with_a_tweet->file_image = file_load($pay_with_a_tweet->image);
+    $pay_with_a_tweet->file_image->html = theme('image', array(
+        'path' => $pay_with_a_tweet->file_image->uri, 
+        'attributes' => array('style' => 'max-width:100%')));
+  }
+  else {
+    $pay_with_a_tweet->file_image->html = t('Pay with a Tweet and download "%title"', array('%title' => $pay_with_a_tweet->title));
+  }
+
+  $pay_with_a_tweet->file_download = file_load($pay_with_a_tweet->download);
+  $pay_with_a_tweet->file_download->safe_uri = $base_url . '/pay_with_a_tweet/' . $pay_with_a_tweet->pid;
+  $pay_with_a_tweet->html = l($pay_with_a_tweet->file_image->html, $pay_with_a_tweet->file_download->safe_uri, array('html' => TRUE));
+}
+
+/**
+ * Save pay_with_a_tweet entity
+ * 
+ * @param $pay_with_a_tweet
+ *   the pay_with_a_tweet entity to be saved
+ * @return
+ *   the pay_with_a_tweet entity saved
+ */
+function pay_with_a_tweet_save(&$pay_with_a_tweet) {
+  return entity_get_controller('pay_with_a_tweet')->save($pay_with_a_tweet);
+}
+
+/**
+ * Get all the pay_with_a_tweet buttons
+ * 
+ * @return 
+ *   An array of pay_with_a_tweet PIDs
+ */
+function pay_with_a_tweet_get_all() {
+  return db_select('pay_with_a_tweet', 'n')->fields('n', array('pid', 'title'))->execute()->fetchAllAssoc('pid');
+}
+
+/**
+ * Private function to get the default pay_with_a_tweet configuration
+ * 
+ * @return
+ *   Array with the default pay_with_a_tweet configuration
+ */
+function _pay_with_a_tweet_config() {
+  $return = array(
+    'blocks' => 1,
+    'own_blocks' => 1,
+    'blocks-config' => array(),
+    'consumer_key' => NULL,
+    'consumer_secret' => NULL
+  );
+
+  return $return;
+}
+
+/**
+ * Private function to get the default pay_with_a_tweet blocks configuration
+ * 
+ * @param $pid
+ *   PID of a pay_with_a_tweet entity
+ *  
+ * @return
+ *   Array with the default pay_with_a_tweet blocks configuration
+ */
+function _pay_with_a_tweet_block_config($pid = NULL) {
+  $return = array(
+    'pid' => $pid,
+    'show' => 0,
+    'text' => NULL
+  );
+
+  return $return;
+}
+
+/**
+ * include the block functions file
+ */
+module_load_include('inc', 'pay_with_a_tweet', 'pay_with_a_tweet.blocks');
+
+/**
+ * include the tokens functions file
+ */
+module_load_include('inc', 'pay_with_a_tweet', 'pay_with_a_tweet.tokens');

@@ -1,0 +1,19 @@
+name = "Pay with a Tweet"
+description = "Create buttons/weblinks to pay a download with a tweet"
+version = "7.x-1.0"
+core = "7.x"
+project = "pay_with_a_tweet"
+
+files[] = pay_with_a_tweet.module
+files[] = pay_with_a_tweet.install
+files[] = pay_with_a_tweet.admin.inc
+files[] = pay_with_a_tweet.blocks.inc
+files[] = pay_with_a_tweet.controller.inc
+files[] = pay_with_a_tweet.page.inc
+files[] = pay_with_a_tweet.tokens.inc
+files[] = css/blocks.css
+files[] = theme/pat-with-a-tweet-button.tpl.php
+files[] = theme/pat-with-a-tweet-token.tpl.php
+; third-party files
+files[] = lib/OAuth.php
+files[] = lib/twitteroauth.php
