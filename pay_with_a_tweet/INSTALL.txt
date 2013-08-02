@@ -1,9 +1,0 @@
-**Installation:
-
-1. Unpack the pay_with_a_tweet folder and contents in the appropriate modules
-directory of your Drupal installation.  This is probably sites/all/modules/
-2. Enable the pay_with_a_tweet module in the administration tools.
-3. If you're not using Drupal's default administrative account, make
-sure "administer pay_with_a_tweet" is enabled through access control 
-administration.
-4. Visit the pay_with_a_tweet settings page and make appropriate configurations
