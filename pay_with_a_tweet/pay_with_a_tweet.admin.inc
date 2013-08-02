@@ -8,11 +8,11 @@
  */
 
 /**
- * Menu callback to show a table with the list of pay_with_a_tweet
- * entities availables
- * 
+ * Menu callback to show the list of pay_with_a_tweet entities availables.
  */
 function pay_with_a_tweet_info() {
+
+  $settings = variable_get(PAY_WITH_A_TWEET, _pay_with_a_tweet_config());
 
   $table = array('header' => array(), 'rows' => array(), 'empty' => '');
 
@@ -24,11 +24,11 @@ function pay_with_a_tweet_info() {
     'image' => t('Image'),
     'download' => t('Download'),
     'changed' => array('data' => t('Updated'), 'field' => 'n.changed'),
+    'token' => t('Token'),
     'operations' => t('Operations'),
   );
 
-  $table['empty'] = t('There are no downloads available.') . ' ' . l(t('Create a download'), 'admin/pay_with_a_tweet/add');
-
+  $table['empty'] = t('There are no downloads available. !create', array('!create' => l(t('Create a download'), 'admin/pay_with_a_tweet/add')));
   $query = db_select('pay_with_a_tweet', 'n')->extend('PagerDefault')->extend('TableSort');
   $pids = $query
       ->fields('n', array('pid'))
@@ -47,15 +47,21 @@ function pay_with_a_tweet_info() {
 
       $table['rows'][$download->pid] = array(
         'id' => $download->pid,
-        'title' => $download->title,
-        'message' => $download->message,
+        'title' => check_plain($download->title),
+        'message' => check_plain($download->message),
         'author' => !empty($author) ? l($author->name, 'user/' . $author->uid) : ' ',
         'image' => $image ? theme('image', array('path' => $image->uri, 'attributes' => array('style' => 'max-width:90px'))) : '',
         'download' => $file ? $file->filename : '',
         'changed' => format_date($download->changed, 'long'),
+        'token' => '[pay_with_a_tweet:pid:' . $download->pid . ']',
         'operations' => l(t('edit'), 'admin/pay_with_a_tweet/' . $download->pid . '/edit', array('query' => $destination)) . ' | '
-        . l(t('delete'), 'admin/pay_with_a_tweet/' . $download->pid . '/delete', array('query' => $destination))
+        . l(t('delete'), 'admin/pay_with_a_tweet/' . $download->pid . '/delete', array('query' => $destination)),
       );
+
+      if ($settings['own_blocks'] == '1') {
+        $table['rows'][$download->pid]['operations'] .= ' | '
+          . l(t('block'), 'admin/structure/block/manage/pay_with_a_tweet/pay-with-a-tweet-own-' . $download->pid . '/configure');
+      }
     }
   }
   $return = theme('table', $table);
@@ -81,18 +87,18 @@ function pay_with_a_tweet_config_form($form, $form_state) {
     '#type' => 'textfield',
     '#title' => t('Consumer Key'),
     '#required' => TRUE,
-    '#default_value' => $settings['consumer_key']
+    '#default_value' => $settings['consumer_key'],
   );
 
   $form['twitter_app']['consumer_secret'] = array(
     '#type' => 'textfield',
     '#title' => t('Consumer Secret'),
     '#required' => TRUE,
-    '#default_value' => $settings['consumer_secret']
+    '#default_value' => $settings['consumer_secret'],
   );
 
   $form['twitter_app']['callback'] = array(
-    '#markup' => t('Your callback URL is %url', array('%url' => $base_url . '/pay_with_a_tweet/callback'))
+    '#markup' => t('Your callback URL is %url', array('%url' => $base_url . '/pay_with_a_tweet/callback')),
   );
 
   $form['pwt_config'] = array(
@@ -105,7 +111,7 @@ function pay_with_a_tweet_config_form($form, $form_state) {
   $form['pwt_config']['own_blocks'] = array(
     '#type' => 'checkbox',
     '#title' => t('Create a block for each download'),
-    '#default_value' => $settings['own_blocks']
+    '#default_value' => $settings['own_blocks'],
   );
 
   $form['pwt_config']['blocks'] = array(
@@ -114,7 +120,7 @@ function pay_with_a_tweet_config_form($form, $form_state) {
     '#maxlength' => 3,
     '#size' => 3,
     '#required' => TRUE,
-    '#default_value' => $settings['blocks']
+    '#default_value' => $settings['blocks'],
   );
 
   $form['actions']['#type'] = 'actions';
@@ -128,13 +134,14 @@ function pay_with_a_tweet_config_form($form, $form_state) {
 function pay_with_a_tweet_config_form_submit($form, $form_state) {
 
   $pay_with_a_tweet_submission = array(
-    'own_blocks' => intval($form_state['values']['own_blocks']),
+    'own_blocks' => $form_state['values']['own_blocks'],
     'blocks' => intval($form_state['values']['blocks']),
-    'consumer_key' => check_plain($form_state['values']['consumer_key']),
-    'consumer_secret' => check_plain($form_state['values']['consumer_secret']));
+    'consumer_key' => $form_state['values']['consumer_key'],
+    'consumer_secret' => $form_state['values']['consumer_secret'],
+  );
 
   $settings = array_merge(variable_get(PAY_WITH_A_TWEET, _pay_with_a_tweet_config()), $pay_with_a_tweet_submission);
-  variable_set_value(PAY_WITH_A_TWEET, $settings);
+  variable_set(PAY_WITH_A_TWEET, $settings);
   drupal_set_message(t('Configuration changed successfully'), 'status');
 }
 
@@ -143,29 +150,22 @@ function pay_with_a_tweet_config_form_submit($form, $form_state) {
  */
 function pay_with_a_tweet_add() {
   $pay_with_a_tweet = (object) array(
-        'pid' => '',
-        'type' => 'pay_with_a_tweet',
-        'title' => '',
-        'message' => '',
-        'download' => '',
-        'image' => '',
-        'uid' => 0,
-        'created' => 0,
-        'changed' => 0,
+    'pid' => '',
+    'type' => 'pay_with_a_tweet',
+    'title' => '',
+    'message' => '',
+    'download' => '',
+    'image' => '',
+    'uid' => 0,
+    'created' => 0,
+    'changed' => 0,
   );
 
   return drupal_get_form('pay_with_a_tweet_form', $pay_with_a_tweet);
 }
 
 /**
- * Menu callback to edit a pay_with_a_tweet entity.
- */
-function pay_with_a_tweet_edit($pay_with_a_tweet) {
-  return drupal_get_form('pay_with_a_tweet_form', $pay_with_a_tweet);
-}
-
-/**
- * Create/Update pay_with_a_tweet entity form
+ * Create/Update pay_with_a_tweet entity form.
  */
 function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
   global $user;
@@ -183,7 +183,7 @@ function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
   );
 
   $form['pay_with_a_tweet']['pid'] = array(
-    '#type' => 'hidden',
+    '#type' => 'value',
     '#value' => $pay_with_a_tweet->pid,
   );
 
@@ -206,7 +206,7 @@ function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
     '#title' => t('Image'),
     '#type' => 'managed_file',
     '#description' => t('The uploaded image will be displayed on this page using the image style choosen below.'),
-    '#default_value' => !empty($pay_with_a_tweet->image) ? $pay_with_a_tweet->image : variable_get('pay_with_a_tweet_image', ''),
+    '#default_value' => !empty($pay_with_a_tweet->image) ? $pay_with_a_tweet->image : '',
     '#upload_location' => 'public://pay_with_a_tweet/images/',
   );
 
@@ -214,12 +214,12 @@ function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
     '#title' => t('Download'),
     '#type' => 'managed_file',
     '#description' => t('The uploaded file will be displayed on this page using the image style choosen below.'),
-    '#default_value' => !empty($pay_with_a_tweet->download) ? $pay_with_a_tweet->download : variable_get('pay_with_a_tweet_download', ''),
+    '#default_value' => !empty($pay_with_a_tweet->download) ? $pay_with_a_tweet->download : '',
     '#upload_location' => 'public://pay_with_a_tweet/downloads/',
     '#required' => TRUE,
   );
 
-// Node author information for administrators
+  // Node author information for administrators.
   $form['author'] = array(
     '#type' => 'fieldset',
     '#title' => t('Authoring information'),
@@ -249,11 +249,16 @@ function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
     '#description' => t('Leave blank for %anonymous.', array('%anonymous' => variable_get('anonymous', t('Anonymous')))),
   );
 
+  $array_date = array(
+    '%time' => !empty($pay_with_a_tweet->changed) ? format_date($pay_with_a_tweet->changed, 'custom', 'Y-m-d H:i:s O') : format_date(time(), 'custom', 'Y-m-d H:i:s O'),
+    '%timezone' => !empty($pay_with_a_tweet->date) ? format_date($pay_with_a_tweet->date, 'custom', 'O') : format_date(time(), 'custom', 'O'),
+  );
+
   $form['author']['date'] = array(
     '#type' => 'textfield',
     '#title' => t('Authored on'),
     '#maxlength' => 25,
-    '#description' => t('Format: %time. The date format is YYYY-MM-DD and %timezone is the time zone offset from UTC. Leave blank to use the time of form submission.', array('%time' => !empty($pay_with_a_tweet->changed) ? format_date($pay_with_a_tweet->changed, 'custom', 'Y-m-d H:i:s O') : format_date(time(), 'custom', 'Y-m-d H:i:s O'), '%timezone' => !empty($pay_with_a_tweet->date) ? format_date($pay_with_a_tweet->date, 'custom', 'O') : format_date(time(), 'custom', 'O'))),
+    '#description' => t('Format: %time. The date format is YYYY-MM-DD and %timezone is the time zone offset from UTC. Leave blank to use the time of form submission.', $array_date),
     '#default_value' => !empty($pay_with_a_tweet->changed) ? format_date($pay_with_a_tweet->changed, 'custom', 'Y-m-d H:i:s O') : format_date(time(), 'custom', 'Y-m-d H:i:s O'),
   );
 
@@ -269,16 +274,16 @@ function pay_with_a_tweet_form($form, &$form_state, $pay_with_a_tweet) {
 }
 
 /**
- * Validate a Create/Update pay_with_a_tweet entity form submit
+ * Validate a Create/Update pay_with_a_tweet entity form.
  */
 function pay_with_a_tweet_form_validate($form, &$form_state) {
-  $pay_with_a_tweet_submisttion = (object) $form_state['values'];
+  $pay_with_a_tweet_submission = (object) $form_state['values'];
   /* @TODO future support to extra fields */
-  field_attach_form_validate('pay_with_a_tweet', $pay_with_a_tweet_submisttion, $form, $form_state);
+  field_attach_form_validate('pay_with_a_tweet', $pay_with_a_tweet_submission, $form, $form_state);
 }
 
 /**
- * Save a Create/Update pay_with_a_tweet entity form
+ * Save a Create/Update pay_with_a_tweet entity form.
  */
 function pay_with_a_tweet_form_submit($form, &$form_state) {
   $pay_with_a_tweet_submission = (object) $form_state['values'];
@@ -287,7 +292,7 @@ function pay_with_a_tweet_form_submit($form, &$form_state) {
     $pay_with_a_tweet->is_new = FALSE;
   }
   else {
-    $pay_with_a_tweet = new stdClass;
+    $pay_with_a_tweet = new stdClass();
     $pay_with_a_tweet->pid = '';
     $pay_with_a_tweet->is_new = TRUE;
   }
@@ -295,8 +300,8 @@ function pay_with_a_tweet_form_submit($form, &$form_state) {
   $date = date_create($pay_with_a_tweet_submission->date);
 
   $pay_with_a_tweet->uid = intval($author->uid);
-  $pay_with_a_tweet->title = check_plain($pay_with_a_tweet_submission->title);
-  $pay_with_a_tweet->message = check_plain($pay_with_a_tweet_submission->message);
+  $pay_with_a_tweet->title = $pay_with_a_tweet_submission->title;
+  $pay_with_a_tweet->message = $pay_with_a_tweet_submission->message;
   $pay_with_a_tweet->download = $pay_with_a_tweet_submission->download;
   $pay_with_a_tweet->image = $pay_with_a_tweet_submission->image;
   $pay_with_a_tweet->changed = $date->getTimestamp();
@@ -345,16 +350,8 @@ function pay_with_a_tweet_form_submit($form, &$form_state) {
   $form_state['redirect'] = "admin/pay_with_a_tweet";
 }
 
-
 /**
- * Menu callback to delete a pay_with_a_tweet entity.
- */
-function pay_with_a_tweet_delete($pay_with_a_tweet) {
-  return drupal_get_form('pay_with_a_tweet_delete_form', $pay_with_a_tweet);
-}
-
-/**
- * Delete pay_with_a_tweet entity form
+ * Delete pay_with_a_tweet entity form.
  */
 function pay_with_a_tweet_delete_form($form, &$form_state, $pay_with_a_tweet) {
   global $user;
@@ -363,11 +360,11 @@ function pay_with_a_tweet_delete_form($form, &$form_state, $pay_with_a_tweet) {
     '#type' => 'fieldset',
     '#title' => t('Pay with a tweet'),
     '#collapsible' => FALSE,
-    '#description' => 'texto borrar'
+    '#description' => 'texto borrar',
   );
 
   $form['pay_with_a_tweet']['pid'] = array(
-    '#type' => 'hidden',
+    '#type' => 'value',
     '#value' => $pay_with_a_tweet->pid,
   );
 
@@ -385,22 +382,26 @@ function pay_with_a_tweet_delete_form($form, &$form_state, $pay_with_a_tweet) {
 }
 
 /**
- * Delete pay_with_a_tweet entity form submit
+ * Delete pay_with_a_tweet entity form submit.
  */
 function pay_with_a_tweet_delete_form_submit($form, &$form_state) {
 
   $pay_with_a_tweet = pay_with_a_tweet_load($form_state['values']['pid']);
-  if (pay_with_a_tweet_entity_delete($pay_with_a_tweet)) {
+  if (pay_with_a_tweet_delete($pay_with_a_tweet)) {
     if (!empty($pay_with_a_tweet->image)) {
       $file = file_load($pay_with_a_tweet->image);
-      file_usage_delete($file, 'file', 'pay_with_a_tweet', $pay_with_a_tweet->pid);
-      file_delete($file);
+      if (!empty($file)) {
+        file_usage_delete($file, 'file', 'pay_with_a_tweet', $pay_with_a_tweet->pid);
+        file_delete($file);
+      }
     }
 
     if (!empty($pay_with_a_tweet->download)) {
       $file = file_load($pay_with_a_tweet->download);
-      file_usage_delete($file, 'file', 'pay_with_a_tweet', $pay_with_a_tweet->pid);
-      file_delete($file);
+      if (!empty($file)) {
+        file_usage_delete($file, 'file', 'pay_with_a_tweet', $pay_with_a_tweet->pid);
+        file_delete($file);
+      }
     }
     drupal_set_message(t('Download %title deleted!', array('%title' => $pay_with_a_tweet->title)), 'status');
   }

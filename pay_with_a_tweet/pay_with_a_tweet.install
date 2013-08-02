@@ -9,11 +9,10 @@
 
 
 /**
- * Implementation of hook_install().
+ * Implements hook_install().
  */
 function pay_with_a_tweet_install() {
 
-  variable_del('pay-with-a-tweet');
   drupal_mkdir('public://pay_with_a_tweet');
   drupal_mkdir('public://pay_with_a_tweet/downloads');
   drupal_mkdir('public://pay_with_a_tweet/images');
@@ -21,8 +20,7 @@ function pay_with_a_tweet_install() {
 }
 
 /**
- * Implementation of hook_schema().
- *
+ * Implements hook_schema().
  */
 function pay_with_a_tweet_schema() {
   $schema['pay_with_a_tweet'] = array(
@@ -38,44 +36,44 @@ function pay_with_a_tweet_schema() {
         'description' => 'The title',
         'type' => 'varchar',
         'length' => '255',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'message' => array(
         'description' => 'Twitter message',
         'type' => 'varchar',
         'length' => '255',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'download' => array(
         'description' => 'The file to download',
         'type' => 'varchar',
         'length' => '255',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'image' => array(
         'description' => 'The button image',
         'type' => 'varchar',
         'length' => '255',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'uid' => array(
         'description' => 'The button created date',
         'type' => 'int',
         'size' => 'normal',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'created' => array(
         'description' => 'The button created date',
         'type' => 'int',
         'size' => 'normal',
-        'not null' => TRUE
+        'not null' => TRUE,
       ),
       'changed' => array(
         'description' => 'The button changed date',
         'type' => 'int',
         'size' => 'normal',
-        'not null' => TRUE
-      )
+        'not null' => TRUE,
+      ),
     ),
     'indexes' => array(
       'created' => array('created'),
@@ -89,16 +87,20 @@ function pay_with_a_tweet_schema() {
 }
 
 /**
- * Implementation of hook_uninstall().
- * 
+ * Implements hook_uninstall().
  */
 function pay_with_a_tweet_uninstall() {
 
-  $fids = db_select('file_usage', 'n')->fields('n', array('fid'))->distinct()->condition('type', 'pay_with_a_tweet', '=')->execute()->fetchAllAssoc('fid');
-  foreach ($fids AS $fid) {
-    $file = file_load($fid->fid);
-    file_usage_delete($file, 'file', 'pay_with_a_tweet');
-    file_delete($file);
+  $result = db_query("SELECT DISTINCT(fid) FROM {file_usage} WHERE type='pay_with_a_tweet'");
+
+  if ($result) {
+    foreach ($result as $row) {
+      $file = file_load($row->fid);
+      file_usage_delete($file, 'file', 'pay_with_a_tweet');
+      file_delete($file);
+    }
   }
+
   file_unmanaged_delete_recursive('public://pay_with_a_tweet');
+  variable_del('pay-with-a-tweet');
 }
